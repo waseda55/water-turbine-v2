@@ -209,6 +209,90 @@ function NsChart({ ns, turbineType, nsRanges }: {
   )
 }
 
+// ══════════════════════════════════════════════════════════════
+// 設計流量入力コンポーネント（SliderInputと完全同一の方式）
+// ══════════════════════════════════════════════════════════════
+function FlowRateInput({
+  flowRate,
+  flowUnit,
+  onFlowRateChange,
+  onUnitChange,
+}: {
+  flowRate: number
+  flowUnit: FlowUnit
+  onFlowRateChange: (m3s: number) => void
+  onUnitChange: (unit: FlowUnit) => void
+}) {
+  const u = FLOW_UNITS.find(fu => fu.key === flowUnit)!
+  const displayVal = toDisplayFlow(flowRate, flowUnit)
+
+  // SliderInputと完全同一：rawは文字列stateで外部から一切触らない
+  const [raw, setRaw] = useState(parseFloat(displayVal.toFixed(u.dec)).toString())
+
+  const commit = (rawStr: string) => {
+    const num = parseFloat(rawStr)
+    if (!isNaN(num) && num > 0) {
+      const m3s = Math.max(0.0001, toM3s(num, flowUnit))
+      onFlowRateChange(m3s)
+      setRaw(parseFloat(toDisplayFlow(m3s, flowUnit).toFixed(u.dec)).toString())
+    } else {
+      setRaw(parseFloat(displayVal.toFixed(u.dec)).toString())
+    }
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="flex justify-between items-baseline mb-1.5">
+        <span className="text-xs text-muted font-medium">設計流量（Q）</span>
+        <select
+          value={flowUnit}
+          onChange={e => {
+            const newUnit = e.target.value as FlowUnit
+            const newU = FLOW_UNITS.find(fu => fu.key === newUnit)!
+            // 単位切替時のみrawを更新（ユーザー操作）
+            setRaw(parseFloat(toDisplayFlow(flowRate, newUnit).toFixed(newU.dec)).toString())
+            onUnitChange(newUnit)
+          }}
+          className="text-[11px] bg-surface2 border border-border rounded px-1.5 py-0.5 text-accent font-mono outline-none focus:border-accent cursor-pointer"
+        >
+          {FLOW_UNITS.map(fu => (
+            <option key={fu.key} value={fu.key}>{fu.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="range" min={0} max={u.max} step={u.step}
+          value={displayVal}
+          onChange={e => {
+            // スライダー操作時のみrawを更新（ユーザー操作）
+            const v = Math.max(0.0001, toM3s(parseFloat(e.target.value), flowUnit))
+            setRaw(parseFloat(toDisplayFlow(v, flowUnit).toFixed(u.dec)).toString())
+            onFlowRateChange(v)
+          }}
+          className="flex-1"
+        />
+        <input
+          type="text"
+          inputMode="decimal"
+          value={raw}
+          onChange={e => setRaw(e.target.value)}
+          onBlur={() => commit(raw)}
+          onKeyDown={e => e.key === 'Enter' && commit(raw)}
+          className="w-[80px] flex-shrink-0 bg-surface2 border border-border rounded-md px-2 py-1 text-right text-[13px] font-mono text-accent font-bold outline-none focus:border-accent transition-colors"
+        />
+      </div>
+      <div className="flex justify-between mt-0.5 pr-[88px]">
+        <span className="text-[10px] text-muted">0 {u.label}</span>
+        <span className="text-[10px] text-muted">{u.max.toLocaleString()} {u.label}</span>
+      </div>
+      <div className="text-[10px] text-muted mt-1 text-right">
+        = {flowRate.toFixed(4)} m³/s
+      </div>
+    </div>
+  )
+}
+
 function SliderInput({
   label, id, value, min, max, step, unit, dec = 1,
   onChange,
@@ -238,7 +322,9 @@ function SliderInput({
           className="flex-1"
         />
         <input
-          type="number" min={min} max={max} step={step} value={raw}
+          type="text"
+          inputMode="decimal"
+          value={raw}
           onChange={e => setRaw(e.target.value)}
           onBlur={() => commit(parseFloat(raw))}
           onKeyDown={e => e.key === 'Enter' && commit(parseFloat(raw))}
@@ -474,54 +560,42 @@ export default function DashboardClient({ user, initialCalculations, initialProj
           <p className="text-[10px] font-bold tracking-[0.15em] text-muted uppercase border-b border-border pb-2 mb-4">基本パラメータ</p>
           <SliderInput label="有効落差（H）"    id="H"     value={inputs.head}         min={2}   max={1000} step={1}   unit="m"    dec={0} onChange={set('head')} />
 
-          {/* 設計流量：単位セレクタ付き */}
-          {(() => {
-            const u = FLOW_UNITS.find(u => u.key === flowUnit)!
-            const displayVal = toDisplayFlow(inputs.flowRate, flowUnit)
-            return (
-              <div className="mb-4">
-                <div className="flex justify-between items-baseline mb-1.5">
-                  <span className="text-xs text-muted font-medium">設計流量（Q）</span>
-                  <select
-                    value={flowUnit}
-                    onChange={e => setFlowUnit(e.target.value as FlowUnit)}
-                    className="text-[11px] bg-surface2 border border-border rounded px-1.5 py-0.5 text-accent font-mono outline-none focus:border-accent cursor-pointer"
-                  >
-                    {FLOW_UNITS.map(u => (
-                      <option key={u.key} value={u.key}>{u.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range" min={0} max={u.max} step={u.step}
-                    value={displayVal}
-                    onChange={e => {
-                      const v = toM3s(parseFloat(e.target.value), flowUnit)
-                      update({ flowRate: Math.max(0.0001, v) })
-                    }}
-                    className="flex-1"
-                  />
-                  <input
-                    type="number" min={0} max={u.max} step={u.step}
-                    value={parseFloat(displayVal.toFixed(u.dec))}
-                    onChange={e => {
-                      const v = toM3s(parseFloat(e.target.value), flowUnit)
-                      if (!isNaN(v) && v > 0) update({ flowRate: v })
-                    }}
-                    className="w-[80px] flex-shrink-0 bg-surface2 border border-border rounded-md px-2 py-1 text-right text-[13px] font-mono text-accent font-bold outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-                <div className="flex justify-between mt-0.5 pr-[88px]">
-                  <span className="text-[10px] text-muted">0 {u.label}</span>
-                  <span className="text-[10px] text-muted">{u.max.toLocaleString()} {u.label}</span>
-                </div>
-                <div className="text-[10px] text-muted mt-1 text-right">
-                  = {inputs.flowRate.toFixed(4)} m³/s
-                </div>
-              </div>
-            )
-          })()}
+          {/* 設計流量：単位セレクタ＋SliderInput */}
+          <div>
+            <div className="flex justify-between items-baseline mb-1.5">
+              <span className="text-xs text-muted font-medium invisible">spacer</span>
+              <select
+                value={flowUnit}
+                onChange={e => setFlowUnit(e.target.value as FlowUnit)}
+                className="text-[11px] bg-surface2 border border-border rounded px-1.5 py-0.5 text-accent font-mono outline-none focus:border-accent cursor-pointer"
+              >
+                {FLOW_UNITS.map(fu => (
+                  <option key={fu.key} value={fu.key}>{fu.label}</option>
+                ))}
+              </select>
+            </div>
+            {(() => {
+              const u = FLOW_UNITS.find(fu => fu.key === flowUnit)!
+              const dispVal = toDisplayFlow(inputs.flowRate, flowUnit)
+              return (
+                <SliderInput
+                  key={flowUnit}
+                  label={`設計流量（Q） [${u.label}]`}
+                  id="Q"
+                  value={parseFloat(dispVal.toFixed(u.dec))}
+                  min={0}
+                  max={u.max}
+                  step={u.step}
+                  unit={u.label}
+                  dec={u.dec}
+                  onChange={v => update({ flowRate: Math.max(0.0001, toM3s(v, flowUnit)) })}
+                />
+              )
+            })()}
+            <div className="text-[10px] text-muted -mt-3 mb-4 text-right pr-[80px]">
+              = {inputs.flowRate.toFixed(4)} m³/s
+            </div>
+          </div>
           <SliderInput label="水車効率（η_t）"  id="eta_t" value={inputs.turbineEff}    min={70}  max={95}   step={0.1} unit="%"    dec={1} onChange={set('turbineEff')} />
           <SliderInput label="発電機効率（η_g）"id="eta_g" value={inputs.generatorEff}  min={90}  max={99}   step={0.1} unit="%"    dec={1} onChange={set('generatorEff')} />
 
