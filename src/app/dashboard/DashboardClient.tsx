@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { calculate, getEfficiencyCurve } from '@/lib/turbine-calc'
 import { exportJSON, exportCSV, exportExcel, importJSON } from '@/lib/export'
-import type { TurbineInputs, TurbineResults, HQRange, NsRange } from '@/types'
+import type { TurbineInputs, TurbineResults, TurbineType, HQRange, NsRange } from '@/types'
 import { useRouter } from 'next/navigation'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -301,12 +301,26 @@ function SliderInput({
   min: number; max: number; step: number; unit: string; dec?: number
   onChange: (v: number) => void
 }) {
-  const [raw, setRaw] = useState(String(value))
+  const [raw, setRaw] = useState(parseFloat(value.toFixed(dec)).toString())
+  const isFocused = useRef(false)
 
-  const commit = (v: number) => {
-    const clamped = Math.min(max, Math.max(min, v))
-    setRaw(clamped.toFixed(dec))
-    onChange(clamped)
+  // スライダー操作など外部から value が変わったとき、
+  // テキスト入力中でなければ raw を同期する
+  useEffect(() => {
+    if (!isFocused.current) {
+      setRaw(parseFloat(value.toFixed(dec)).toString())
+    }
+  }, [value, dec])
+
+  const commit = (rawStr: string) => {
+    const num = parseFloat(rawStr)
+    if (!isNaN(num)) {
+      const clamped = Math.min(max, Math.max(min, num))
+      setRaw(clamped.toFixed(dec))
+      onChange(clamped)
+    } else {
+      setRaw(parseFloat(value.toFixed(dec)).toString())
+    }
   }
 
   return (
@@ -318,16 +332,17 @@ function SliderInput({
       <div className="flex items-center gap-2">
         <input
           type="range" min={min} max={max} step={step} value={value}
-          onChange={e => { const v = parseFloat(e.target.value); setRaw(v.toFixed(dec)); onChange(v) }}
+          onChange={e => onChange(parseFloat(e.target.value))}
           className="flex-1"
         />
         <input
           type="text"
           inputMode="decimal"
           value={raw}
+          onFocus={() => { isFocused.current = true }}
           onChange={e => setRaw(e.target.value)}
-          onBlur={() => commit(parseFloat(raw))}
-          onKeyDown={e => e.key === 'Enter' && commit(parseFloat(raw))}
+          onBlur={() => { isFocused.current = false; commit(raw) }}
+          onKeyDown={e => { if (e.key === 'Enter') commit(raw) }}
           className="w-[72px] flex-shrink-0 bg-surface2 border border-border rounded-md px-2 py-1 text-right text-[13px] font-mono text-accent font-bold outline-none focus:border-accent transition-colors"
         />
       </div>
@@ -342,6 +357,7 @@ function SliderInput({
 // ─── メインコンポーネント ─────────────────────────────────────
 export default function DashboardClient({ user, initialCalculations, initialProjects, hqRanges, nsRanges }: Props) {
   const [inputs, setInputs] = useState<TurbineInputs>(DEFAULT_INPUTS)
+  const [forcedType, setForcedType] = useState<TurbineType | null>(null)
   const [results, setResults] = useState<TurbineResults>(() => calculate(DEFAULT_INPUTS))
   const [history, setHistory] = useState<HistoryRow[]>(initialCalculations)
   const [projects] = useState<ProjectRow[]>(initialProjects)
@@ -364,8 +380,17 @@ export default function DashboardClient({ user, initialCalculations, initialProj
   const update = useCallback((patch: Partial<TurbineInputs>) => {
     setInputs(prev => {
       const next = { ...prev, ...patch }
-      setResults(calculate(next))
+      setResults(calculate(next, forcedType ?? undefined))
       return next
+    })
+  }, [forcedType])
+
+  // forcedType変更時にも再計算
+  const handleForcedType = useCallback((type: TurbineType | null) => {
+    setForcedType(type)
+    setInputs(prev => {
+      setResults(calculate(prev, type ?? undefined))
+      return prev
     })
   }, [])
 
@@ -456,7 +481,7 @@ export default function DashboardClient({ user, initialCalculations, initialProj
     try {
       const payload = await importJSON(file)
       setInputs(payload.inputs)
-      setResults(calculate(payload.inputs))
+      setResults(calculate(payload.inputs, forcedType ?? undefined))
       setImportMsg({ type: 'ok', text: `「${payload.caseName}」を読み込みました` })
     } catch (err) {
       setImportMsg({ type: 'err', text: err instanceof Error ? err.message : '読み込みエラー' })
@@ -482,7 +507,7 @@ export default function DashboardClient({ user, initialCalculations, initialProj
       penstock: { length: data.penstock_length ?? 500, material: data.penstock_material ?? 'steel' },
     }
     setInputs(restored)
-    setResults(calculate(restored))
+    setResults(calculate(restored, forcedType ?? undefined))
   }
 
   return (
@@ -557,6 +582,41 @@ export default function DashboardClient({ user, initialCalculations, initialProj
       <div className="flex flex-1 overflow-hidden">
         {/* ─── LEFT: Inputs ─── */}
         <aside className="w-[340px] flex-shrink-0 bg-surface border-r border-border overflow-y-auto p-5">
+          {/* 水車種類選択 */}
+          <p className="text-[10px] font-bold tracking-[0.15em] text-muted uppercase border-b border-border pb-2 mb-3">水車種類</p>
+          <div className="grid grid-cols-2 gap-1.5 mb-5">
+            <button
+              onClick={() => handleForcedType(null)}
+              className={`col-span-2 py-2 rounded-lg text-xs border transition-all font-medium
+                ${forcedType === null
+                  ? 'bg-accent/15 border-accent text-accent font-bold'
+                  : 'bg-surface2 border-border text-muted hover:text-text'}`}
+            >
+              🔄 自動選択（推奨）
+            </button>
+            {([
+              { type: 'ペルトン水車',   icon: '💧', color: 'text-[#a78bfa]', border: 'border-[#a78bfa]', bg: 'bg-[#a78bfa]/15' },
+              { type: 'フランシス水車', icon: '🌊', color: 'text-[#38bdf8]', border: 'border-[#38bdf8]', bg: 'bg-[#38bdf8]/15' },
+              { type: 'カプラン水車',   icon: '🌀', color: 'text-[#34d399]', border: 'border-[#34d399]', bg: 'bg-[#34d399]/15' },
+            ] as const).map(({ type, icon, color, border, bg }) => (
+              <button
+                key={type}
+                onClick={() => handleForcedType(type as TurbineType)}
+                className={`py-2 rounded-lg text-xs border transition-all font-medium
+                  ${forcedType === type
+                    ? `${bg} ${border} ${color} font-bold`
+                    : 'bg-surface2 border-border text-muted hover:text-text'}`}
+              >
+                {icon} {type.replace('水車', '')}
+              </button>
+            ))}
+          </div>
+          {forcedType && (
+            <div className="mb-4 px-3 py-2 rounded-lg bg-warn/10 border border-warn/30 text-[11px] text-warn leading-relaxed">
+              ⚠️ 強制指定モード：条件に最適でない水車も計算できますが、判定結果にご注意ください。
+            </div>
+          )}
+
           <p className="text-[10px] font-bold tracking-[0.15em] text-muted uppercase border-b border-border pb-2 mb-4">基本パラメータ</p>
           <SliderInput label="有効落差（H）"    id="H"     value={inputs.head}         min={2}   max={1000} step={1}   unit="m"    dec={0} onChange={set('head')} />
 

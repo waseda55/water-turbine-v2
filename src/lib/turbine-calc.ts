@@ -71,7 +71,7 @@ function calcKaplanDimensions(ns: number, flowRate: number, runnerDiameter: numb
 }
 
 // ── メイン計算 ─────────────────────────────────────────────────
-export function calculate(inputs: TurbineInputs): TurbineResults {
+export function calculate(inputs: TurbineInputs, forcedType?: TurbineType): TurbineResults {
   const { head, flowRate, turbineEff, generatorEff, suctionHead, altitude, frequency,
           powerFactor, operatingHours, capacityFactor, penstock } = inputs
   const etaT = turbineEff / 100
@@ -84,7 +84,10 @@ export function calculate(inputs: TurbineInputs): TurbineResults {
 
   let turbineType: TurbineType
   let runawayCoeff: number
-  if (head > 300 || specificSpeed < 100) {
+  if (forcedType) {
+    turbineType  = forcedType
+    runawayCoeff = forcedType === 'カプラン水車' ? 2.5 : 1.8
+  } else if (head > 300 || specificSpeed < 100) {
     turbineType = 'ペルトン水車';   runawayCoeff = 1.8
   } else if (specificSpeed < 300) {
     turbineType = 'フランシス水車'; runawayCoeff = 1.8
