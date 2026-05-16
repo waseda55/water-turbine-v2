@@ -1,16 +1,21 @@
 import type { Metadata } from 'next'
-import { Noto_Sans_JP, Space_Mono } from 'next/font/google'
+import { Space_Grotesk, JetBrains_Mono, Noto_Sans_JP } from 'next/font/google'
 import './globals.css'
 
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-space-grotesk',
+})
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
+  variable: '--font-jetbrains-mono',
+})
 const noto = Noto_Sans_JP({
   subsets: ['latin'],
   weight: ['300', '400', '500', '700'],
   variable: '--font-noto',
-})
-const spaceMono = Space_Mono({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-space-mono',
 })
 
 export const metadata: Metadata = {
@@ -20,8 +25,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja" className={`${noto.variable} ${spaceMono.variable}`}>
-      <body className="bg-bg text-text font-sans antialiased">{children}</body>
+    <html lang="ja" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${noto.variable}`}>
+      <body className="bg-bg text-text antialiased">{children}</body>
     </html>
   )
 }

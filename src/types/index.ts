@@ -22,7 +22,13 @@ export interface TurbineInputs {
 }
 
 // ---------- 計算結果 ----------
-export type TurbineType = 'ペルトン水車' | 'フランシス水車' | 'カプラン水車'
+export type TurbineType =
+  | 'ペルトン水車'
+  | 'フランシス水車'
+  | 'カプラン水車'
+  | 'クロスフロー水車'
+  | 'チューブラ水車'
+
 export type CheckResult = 'OK' | 'NG' | '注意' | 'N/A'
 
 export interface TurbineResults {
@@ -41,60 +47,79 @@ export interface TurbineResults {
   // ── 寸法系 ──
   dimensions: {
     runnerDiameter: number            // ランナー径 D [m]
-    draftTubeDiameter: number | null  // 吸出し管径 [m]（フランシス/カプランのみ）
+    draftTubeDiameter: number | null  // 吸出し管径 [m]（反動式のみ）
     casingDiameter: number | null     // ケーシング概略径 [m]
     penstockDiameter: number          // 導水管径 [m]
     penstockVelocity: number          // 導水管流速 [m/s]
 
     // ── ペルトン専用 ──
     pelton: {
-      numJets: number               // ジェット数 J
-      jetDiameter: number           // ジェット径 d [m]
-      dOverD: number                // D/d 比
-      bucketWidth: number           // バケット内幅 B2 [m]
-      dOverB: number                // D/B 比
-      numBuckets: number            // バケット数
-      minFlow: number               // 最小流量 [m³/s]
+      numJets: number
+      jetDiameter: number
+      dOverD: number
+      bucketWidth: number
+      dOverB: number
+      numBuckets: number
+      minFlow: number
     } | null
 
     // ── フランシス専用 ──
     francis: {
-      outletDiameter: number        // アウトレット径 D2e [m]
-      inletDiameter: number         // 入口径 D01 [m]
-      guideVaneHeight: number       // ガイドベーン高さ Bd [m]
-      spiralCaseInlet: number       // スパイラルケーシング入口径 [m]
-      numBlades: number             // ランナーブレード数
-      numGuideVanes: number         // ガイドベーン数
-      minFlow: number               // 最小流量 [m³/s]
-      flowAtRunaway: number         // 暴走時流量 [m³/s]
+      outletDiameter: number
+      inletDiameter: number
+      guideVaneHeight: number
+      spiralCaseInlet: number
+      numBlades: number
+      numGuideVanes: number
+      minFlow: number
+      flowAtRunaway: number
     } | null
 
     // ── カプラン専用 ──
     kaplan: {
-      numBlades: number             // ランナーブレード数
-      hubDiameter: number           // ハブ径 Dh [m]
-      hubRatio: number              // ハブ比 Dh/D
-      numGuideVanes: number         // ガイドベーン数
-      minFlow: number               // 最小流量 [m³/s]
+      numBlades: number
+      hubDiameter: number
+      hubRatio: number
+      numGuideVanes: number
+      minFlow: number
+    } | null
+
+    // ── クロスフロー専用 ──
+    crossflow: {
+      runnerWidth: number       // ランナー幅 B [m]
+      aspectRatio: number       // B/D 比
+      numBlades: number         // ブレード数
+      attackAngle: number       // 入射角 [deg]
+      minFlow: number           // 最小流量 [m³/s]
+    } | null
+
+    // ── チューブラ専用 ──
+    tubular: {
+      numBlades: number         // ランナーブレード数
+      hubDiameter: number       // ハブ径 [m]
+      hubRatio: number          // ハブ比 Dh/D
+      numGuideVanes: number     // ガイドベーン数
+      coneAngle: number         // ドラフトチューブコーン角 [deg]
+      minFlow: number           // 最小流量 [m³/s]
     } | null
   }
 
   // ── 水理・構造系 ──
   hydraulics: {
-    gd2: number                   // フライホイール効果 GD² [kN·m²]
-    waterHammerRise: number       // 水撃圧上昇率 ΔH/H [%]
-    waterHammerHead: number       // 水撃圧上昇値 ΔH [m]
+    gd2: number
+    waterHammerRise: number
+    waterHammerHead: number
     penstock: {
-      headLoss: number            // 管路損失 hf [m]
-      headLossRatio: number       // 損失率 hf/H [%]
+      headLoss: number
+      headLossRatio: number
     }
   }
 
   // ── 電気系 ──
   electrical: {
-    generatorKva: number          // 発電機容量 [kVA]
-    annualEnergy: number          // 年間発電量 [MWh/年]
-    annualEnergyGwh: number       // 年間発電量 [GWh/年]
+    generatorKva: number
+    annualEnergy: number
+    annualEnergyGwh: number
   }
 
   checks: {
